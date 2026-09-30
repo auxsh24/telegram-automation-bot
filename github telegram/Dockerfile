@@ -34,6 +34,9 @@ RUN groupadd --system relay \
 # Copy application code
 COPY --chown=relay:relay . .
 
+# Fix line endings and make entrypoint executable
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
+
 # Runs as root first so it can fix the data directory ownership, then re-execs
 # itself as the unprivileged relay user.
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
