@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Relay Dashboard</title>
+    <meta name="description" content="Connect Telegram and manage message forwarding from one focused workspace.">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#edf2ef">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a9d8f'/%3E%3Cpath d='M8 12h16v9H13l-5 4v-13Z' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <script>
+        /* Resolve the theme before first paint: an explicit choice always wins,
+           otherwise the operating system preference is used. */
+        (function () {
+            try {
+                var stored = localStorage.getItem('telegram-relay-theme');
+                var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.dataset.theme =
+                    stored === 'dark' || stored === 'light' ? stored : (prefersDark ? 'dark' : 'light');
+            } catch (error) {
+                document.documentElement.dataset.theme = 'light';
+            }
+        })();
+    </script>
+        <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="dashboard">
+
+    <!-- ========== TOP NAV ========== -->
+    <nav class="topnav">
+        <div class="nav-brand">
+            <div class="brand-logo">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+            </div>
+            <div class="brand-info">
+                <h1>Telegram Relay</h1>
+                <span class="brand-tag">Message Forwarding Control</span>
+            </div>
+        </div>
+        <div class="nav-status">
+            <button class="theme-toggle" id="btn-theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false" title="Switch to dark theme">
+                <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.9 13A8.5 8.5 0 0 1 11 3.1 8.5 8.5 0 1 0 20.9 13Z"/>
+                </svg>
+                <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>
+                </svg>
+            </button>
+            <div class="status-badge" id="status-badge">
+                <span class="badge-dot" id="status-dot"></span>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Status Bar -->
+    <div class="status-bar hidden" id="status-bar">
+        <div class="status-bar-icon" id="status-bar-icon"></div>
+        <span id="status-bar-text">Processing...</span>
+    </div>
+
+    <!-- ========== AUTH SECTION ========== -->
+    <section class="auth-section" id="auth-section">
+        <div class="auth-layout">
+            <aside class="auth-story" aria-label="Telegram Relay workspace">
+                <div class="story-topline">
+                    <span class="story-mark" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7Z"/>
+                        </svg>
+                    </span>
+                    <span>PERSONAL RELAY WORKSPACE</span>
+                </div>
+                <div class="auth-story-copy">
+                    <p class="story-eyebrow">TELEGRAM RELAY <span>/ CONTROL PANEL</span></p>
+                    <h2>Your channels.<br><span>In one control room.</span></h2>
+                    <p>Connect your Telegram account to monitor forwarding, tune delivery, and keep every route in view.</p>
+                </div>
+                <div class="route-preview" aria-label="Message route from source channels through Telegram Relay to your converter bot">
+                    <div class="route-preview-head">
+                        <span>MESSAGE ROUTE</span>
+                        <span class="route-state"><i></i> AWAITING CONNECTION</span>
+                    </div>
+                    <div class="route-node">
+                        <span class="route-node-icon source-node" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h16v11H8l-4 3v-14Z"/><path d="M8 9h8M8 13h5"/></svg>
+                        </span>
+                        <span class="route-node-copy"><strong>Source channels</strong><small>Messages arrive</small></span>
+                        <span class="route-node-index">01</span>
+                    </div>
+                    <div class="route-link" aria-hidden="true"><span></span><span></span><span></span></div>
+                    <div class="route-node">
+                        <span class="route-node-icon relay-node" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M5 17h14"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></svg>
+                        </span>
+                        <span class="route-node-copy"><strong>Telegram Relay</strong><small>Filters &amp; forwards</small></span>
+                        <span class="route-node-index">02</span>
+                    </div>
+                    <div class="route-link" aria-hidden="true"><span></span><span></span><span></span></div>
+                    <div class="route-node">
+                        <span class="route-node-icon target-node" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7Z"/></svg>
+                        </span>
+                        <span class="route-node-copy"><strong>Converter bot</strong><small>Delivery destination</small></span>
+                        <span class="route-node-index">03</span>
+                    </div>
+                </div>
+                <div class="story-footnote"><span aria-hidden="true">+</span> Built for clear, reliable message operations.</div>
+            </aside>
+        <div class="auth-card">
+            <div class="auth-card-header">
+                <div class="auth-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="auth-kicker">ACCOUNT ACCESS</p>
+                    <h2>Connect your Telegram account</h2>
+                    <p>Use your Telegram API credentials to continue.</p>
+                </div>
+            </div>
+
+            <ol class="auth-progress" id="auth-progress" aria-label="Connection steps">
+                <li class="auth-progress-step active" aria-current="step">
+                    <span class="progress-step-number">1</span>
+                    <span>Credentials</span>
+                </li>
+                <li class="auth-progress-step">
+                    <span class="progress-step-number">2</span>
+                    <span>Phone</span>
+                </li>
+                <li class="auth-progress-step">
+                    <span class="progress-step-number">3</span>
+                    <span>Verify</span>
+                </li>
+            </ol>
+
+            <div class="auth-steps" id="auth-steps">
+                <!-- Step 1: API Credentials -->
+                <div class="step active" id="step-setup">
+                    <div class="step-number">1</div>
+                    <p class="step-heading">API Credentials</p>
+                    <div class="form-group">
+                        <label class="form-label" for="api-id">API ID</label>
+                        <input type="number" id="api-id" class="form-input" placeholder="e.g., 1234567" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="api-hash">API Hash</label>
+                        <input type="text" id="api-hash" class="form-input" placeholder="e.g., abcdef1234567890..." autocomplete="off">
+                    </div>
+                    <button class="btn btn-primary btn-block" id="btn-setup" aria-label="Save API credentials and continue">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <span>Save &amp; Continue</span>
+                    </button>
+                    <p class="help-text">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--accent);flex-shrink:0;margin-top:1px;">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        Get credentials from <a href="https://my.telegram.org/apps" target="_blank" rel="noopener noreferrer">my.telegram.org</a>
+                    </p>
+                </div>
+
+                <!-- Step 2: Phone -->
+                <div class="step" id="step-phone">
+                    <div class="step-number">2</div>
+                    <div class="step-heading-row">
+                        <p class="step-heading">Phone Number</p>
+                        <button class="btn-step-back" id="btn-back-phone" type="button" aria-label="Back to API credentials">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+                            <span>Back</span>
+                        </button>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="phone">Phone Number</label>
+                        <input type="tel" id="phone" class="form-input" placeholder="+91 98765 43210" autocomplete="off">
+                    </div>
+                    <button class="btn btn-primary btn-block" id="btn-send-code" aria-label="Send verification code to phone">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <span>Send Verification Code</span>
+                    </button>
+                    <p class="help-text">A verification code will be sent to your Telegram app</p>
+                </div>
+
+                <!-- Step 3: Code -->
+                <div class="step" id="step-code">
+                    <div class="step-number">3</div>
+                    <div class="step-heading-row">
+                        <p class="step-heading">Verification Code</p>
+                        <button class="btn-step-back" id="btn-back-code" type="button" aria-label="Back to phone number">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+                            <span>Back</span>
+                        </button>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="verification-code">Verification Code</label>
+                        <input type="text" id="verification-code" class="form-input" placeholder="12345" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+                    </div>
+                    <button class="btn btn-primary btn-block" id="btn-verify-code" aria-label="Verify the code from Telegram">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <span>Verify Code</span>
+                    </button>
+                    <p class="help-text">Enter the code you received via SMS or Telegram</p>
+                </div>
+
+                <!-- Step 4: 2FA -->
+                <div class="step" id="step-2fa">
+                    <div class="step-number">4</div>
+                    <div class="step-heading-row">
+                        <p class="step-heading">Two-Factor Authentication</p>
+                        <button class="btn-step-back" id="btn-back-2fa" type="button" aria-label="Back to verification code">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+                            <span>Back</span>
+                        </button>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="twofa-password">Cloud Password</label>
+                        <input type="password" id="twofa-password" class="form-input" placeholder="Enter your 2FA password" autocomplete="off">
+                    </div>
+                    <button class="btn btn-primary btn-block" id="btn-verify-2fa" aria-label="Enter 2FA password to complete connection">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <span>Verify &amp; Connect</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="feedback-msg" id="auth-feedback" role="status" aria-live="polite"></div>
+
+            <div class="auth-footer">
+                <button class="btn btn-text" id="btn-disconnect" aria-label="Disconnect Telegram account" style="color:var(--danger);"><span class="spinner" aria-hidden="true"></span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Disconnect Account
+                </button>
+            </div>
+        </div>
+        </div>
+    </section>
+
+    <!-- ========== MAIN CONTENT ========== -->
+    <div class="main-content hidden" id="main-content">
+        <div class="workspace-header">
+            <div>
+                <p class="workspace-eyebrow">TELEGRAM RELAY</p>
+                <h2>Control center</h2>
+            </div>
+            <nav class="workspace-nav" id="workspace-nav" aria-label="Workspace sections">
+                <a class="active" href="#overview" aria-current="location">Overview</a>
+                <a href="#operations">Operations</a>
+                <a href="#settings">Settings</a>
+                <a href="#activity-log">Activity</a>
+            </nav>
+        </div>
+
+        <div class="overview-grid" id="overview">
+        <section class="card-secondary account-card">
+            <div class="card-header secondary-header">
+                <div class="card-icon account-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3>Connected Account</h3>
+                    <p>Active Telegram session details</p>
+                </div>
+            </div>
+            <div id="account-info">
+                <div class="skeleton">
+                    <div class="skel skel-1"></div>
+                    <div class="skel skel-2"></div>
+                    <div class="skel skel-3"></div>
+                </div>
+            </div>
+            <div class="account-actions">
+                <button class="btn btn-text" id="btn-disconnect-main" aria-label="Disconnect Telegram account" style="color:var(--danger);"><span class="spinner" aria-hidden="true"></span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Disconnect Account
+                </button>
+            </div>
+            </section>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon proc-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Processed</span>
+                    <span class="stat-value" id="stat-processed">0</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon sent-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Sent</span>
+                    <span class="stat-value" id="stat-sent">0</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon fail-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="15" y1="9" x2="9" y2="15"/>
+                        <line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Failed</span>
+                    <span class="stat-value" id="stat-failed">0</span>
+                </div>
+            </div>
+            <div class="stat-card refresh-card">
+                <button class="btn btn-ghost btn-sm" id="btn-refresh-stats" aria-label="Refresh statistics" title="Refresh stats">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
+        </div>
+
+        <!-- Two Column: Operations + Test -->
+        <div class="two-col" id="operations">
+            <!-- Relay Operations -->
+            <section class="card-primary">
+                <div class="card-header ops-card-header">
+                    <div class="card-icon ops-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>Relay Operations</h3>
+                        <p>Scan, start, and stop message forwarding</p>
+                    </div>
+                    <span class="monitor-state is-idle" id="monitor-state">
+                        <span class="monitor-state-dot" aria-hidden="true"></span>
+                        <span id="monitor-state-label">Monitoring paused</span>
+                    </span>
+                </div>
+                <div class="ops-grid">
+                    <button class="btn btn-primary" id="btn-analyze" aria-label="Analyze today's messages">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <span>Analyze Today</span>
+                    </button>
+                    <button class="btn btn-secondary" id="btn-start" aria-label="Start monitoring source channels">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        <span>Start Monitor</span>
+                    </button>
+                    <button class="btn btn-danger" id="btn-stop" aria-label="Stop monitoring" disabled>
+                        <span class="spinner" aria-hidden="true"></span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="6" y="6" width="12" height="12"/>
+                        </svg>
+                        <span>Stop Monitor</span>
+                    </button>
+                </div>
+                <div class="relay-health" id="relay-health" hidden>
+                    <div class="relay-health-item">
+                        <span class="relay-health-label">Connection</span>
+                        <span class="relay-health-value" id="health-connection">&mdash;</span>
+                    </div>
+                    <div class="relay-health-item">
+                        <span class="relay-health-label">Uptime</span>
+                        <span class="relay-health-value" id="health-uptime">&mdash;</span>
+                    </div>
+                    <div class="relay-health-item">
+                        <span class="relay-health-label">Sent / Failed</span>
+                        <span class="relay-health-value" id="health-counters">&mdash;</span>
+                    </div>
+                    <div class="relay-health-item">
+                        <span class="relay-health-label">Last delivery</span>
+                        <span class="relay-health-value" id="health-last-sent">&mdash;</span>
+                    </div>
+                </div>
+                <div class="relay-alert" id="relay-alert" hidden role="alert"></div>
+                <div class="feedback-msg" id="action-message" aria-live="polite"></div>
+            </section>
+
+            <!-- Test Send -->
+            <section class="card-secondary">
+                <div class="card-header secondary-header">
+                    <div class="card-icon test-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>Test Send</h3>
+                        <p>Verify converter bot connectivity</p>
+                    </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+                    <button class="btn btn-primary btn-block" id="btn-test-send" aria-label="Send test message to converter bot">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                        <span>Send Test Message</span>
+                    </button>
+                    <div class="feedback-msg" id="test-status" aria-live="polite"></div>
+                </div>
+                <p class="help-text">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--warning);flex-shrink:0;margin-top:1px;">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    Sends a timestamped test message to your configured converter bot
+                </p>
+            </section>
+        </div>
+
+        <div class="workspace-grid">
+        <section class="card-primary" id="settings">
+            <div class="card-header">
+                <div class="card-icon settings-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3>Relay Settings</h3>
+                    <p>Configure channels and forwarding behavior</p>
+                </div>
+            </div>
+
+            <div class="settings-body">
+                <div class="setting-group">
+                    <label class="setting-label" for="converter-bot">Converter Bot</label>
+                    <input type="text" id="converter-bot" class="setting-input" placeholder="@ExtraPeBot" aria-label="Converter bot username">
+                </div>
+
+                <div class="setting-divider">
+                    <span>Source Channels</span>
+                </div>
+
+                <div class="channels-area">
+                    <div class="add-channel-inline">
+                        <input type="text" id="add-channel-input" class="add-channel-input" placeholder="@channel_username" aria-label="Channel username to add">
+                        <button class="add-channel-btn" id="btn-add-channel" aria-label="Add channel" title="Add channel">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"/>
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="channels" class="channels-list" aria-label="Source channels"></div>
+                </div>
+
+                <div class="setting-divider">
+                    <span>Forwarding Options</span>
+                </div>
+
+                <div class="settings-grid-2">
+                    <div class="setting-group">
+                        <label class="setting-label" for="duplicate-ttl">Duplicate Retention</label>
+                        <select id="duplicate-ttl" class="setting-select" aria-label="Duplicate message retention period in days">
+                            <option value="1">1 day</option>
+                            <option value="2">2 days</option>
+                            <option value="3">3 days</option>
+                            <option value="7">7 days</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label" for="retry-attempts">Retry Attempts</label>
+                        <select id="retry-attempts" class="setting-select" aria-label="Number of retry attempts">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3" selected>3</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label" for="retry-delay">Retry Delay</label>
+                    <select id="retry-delay" class="setting-select" aria-label="Delay between retry attempts in seconds">
+                        <option value="1">1 second</option>
+                        <option value="2" selected>2 seconds</option>
+                        <option value="5">5 seconds</option>
+                        <option value="10">10 seconds</option>
+                    </select>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label" for="log-retention-days">Log Retention</label>
+                    <select class="setting-select" id="log-retention-days">
+                        <option value="1" selected>1 day</option>
+                        <option value="2">2 days</option>
+                        <option value="7">7 days</option>
+                        <option value="14">14 days</option>
+                        <option value="30">30 days</option>
+                        <option value="0">Keep all (no cleanup)</option>
+                    </select>
+                    <p class="help-text">Applied automatically in the background &mdash; you do not need to press Clear Old Logs.</p>
+                </div>
+
+                <div class="setting-group">
+                    <label class="toggle-row" for="auto-resume">
+                        <span class="toggle-copy">
+                            <span class="setting-label">Auto-resume after restart</span>
+                            <span class="help-text">Restart the monitoring automatically if the server or container restarts.</span>
+                        </span>
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="auto-resume" aria-label="Auto-resume monitoring after a restart">
+                            <span class="toggle-track" aria-hidden="true"></span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="setting-divider">
+                    <span>Storage</span>
+                </div>
+
+                <button class="btn btn-secondary btn-block" id="btn-clear-logs" aria-label="Clear old logs">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    Clear Old Logs
+                </button>
+
+                <button class="btn btn-primary btn-block" id="btn-save-settings" aria-label="Save settings">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <span>Save Settings</span>
+                </button>
+                <div class="feedback-msg" id="settings-message" aria-live="polite"></div>
+            </div>
+        </section>
+
+        <!-- Activity Log -->
+        <section class="card-primary" id="activity-log">
+            <div class="card-header">
+                <div class="card-icon activity-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3>Activity Log</h3>
+                    <p>Real-time event feed from the relay</p>
+                </div>
+            </div>
+            <div class="activity-card-body">
+            <div class="activity-wrapper">
+                <div id="activity" class="activity-list" aria-live="polite" aria-label="Activity log">
+                    <div class="activity-header">
+                        <span>Time</span>
+                        <span>Status</span>
+                        <span>Message</span>
+                    </div>
+                    <div class="activity-empty">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <p>No activity recorded yet</p>
+                        <span>Messages will appear here as they are processed. Ensure your source channels are set and monitoring is running.</span>
+                    </div>
+                </div>
+                <div class="activity-footer">
+                    <button class="btn btn-ghost btn-sm" id="btn-refresh-activity" aria-label="Refresh activity log">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                        </svg>
+                        Refresh Log
+                    </button>
+                </div>
+            </div>
+            </div>
+        </section>
+        </div>
+
+    </div>
+
+    <!-- Offline / reconnect banner -->
+    <div class="offline-banner" id="offline-banner" hidden role="alert">
+        <span class="offline-dot" aria-hidden="true"></span>
+        <span id="offline-banner-text">Connection lost. Retrying&hellip;</span>
+    </div>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="site-footer">
+        <span class="site-footer-brand">Telegram Relay Dashboard</span>
+        <span class="site-footer-meta">Message Forwarding Control · <span id="footer-version">v1.0.0</span></span>
+    </footer>
+
+</div>
+
+<!-- ========== CONFIRM DIALOG ========== -->
+<!-- A native confirm() blocks the event loop, reads as a browser dialog on a
+     polished dashboard, and cannot show which action is being confirmed. -->
+<div class="modal-backdrop" id="confirm-modal" hidden>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+        <h3 class="modal-title" id="confirm-title">Are you sure?</h3>
+        <p class="modal-body" id="confirm-body"></p>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" id="confirm-cancel" type="button">Cancel</button>
+            <button class="btn btn-danger" id="confirm-accept" type="button">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

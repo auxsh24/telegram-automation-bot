@@ -1,0 +1,45 @@
+# Production compose for the Telegram Relay Dashboard.
+#
+# Usage:
+#   cp .env.example .env   # then fill in RELAY_USERNAME / RELAY_PASSWORD
+#   docker compose up -d --build
+#
+# The app is meant to sit behind a TLS terminator (Cloudflare Tunnel or a
+# reverse proxy on the same host), which is why the port binds to loopback.
+
+services:
+  telegram-relay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: telegram-relay:latest
+    container_name: telegram-relay-dashboard
+    restart: unless-stopped
+    # Loopback only: exposing 8000 on a public IP would serve the dashboard
+    # over plain HTTP, and the Basic auth credentials would cross the wire in
+    # clear text.
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # Only the data directory is mounted. The previous per-file mounts meant
+      # any new source file was silently ignored by the running container.
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+    # Bound the log driver so a chatty relay cannot fill the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
