@@ -136,11 +136,23 @@ class TelegramService:
                 "Telegram API credentials are not configured."
             )
 
-        self.client = TelegramClient(
-            str(SESSION_FILE),
-            int(api_id),
-            api_hash
-        )
+        # Cloud deployment: session string from env survives restarts.
+        # Local dev: session file in data/ directory.
+        session_string = os.getenv("TELEGRAM_SESSION_STRING", "").strip()
+
+        if session_string:
+            from telethon.sessions import StringSession
+            self.client = TelegramClient(
+                StringSession(session_string),
+                int(api_id),
+                api_hash
+            )
+        else:
+            self.client = TelegramClient(
+                str(SESSION_FILE),
+                int(api_id),
+                api_hash
+            )
 
         return self.client
 
