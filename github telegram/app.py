@@ -383,6 +383,24 @@ class RelaySettings(BaseModel):
     auto_resume: bool = False
 
 
+def _env_list(key, default="[]"):
+    """Read a JSON list from an env variable."""
+    raw = os.getenv(key, default).strip()
+    try:
+        val = json.loads(raw)
+        return val if isinstance(val, list) else []
+    except json.JSONDecodeError:
+        return []
+
+
+def _env_int(key, default):
+    """Read an int from an env variable."""
+    try:
+        return int(os.getenv(key, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
 @app.get("/api/health")
 async def health():
     """Liveness/readiness probe for the container and any uptime monitor.
@@ -717,24 +735,24 @@ async def get_settings():
     return {
         "converter_bot": database.get_setting(
             "converter_bot",
-            "@ExtraPeBot"
+            os.getenv("RELAY_CONVERTER_BOT", "@ExtraPeBot")
         ),
         "source_channels": source_channels,
         "duplicate_ttl_days": setting_int(
             "duplicate_ttl_days",
-            1
+            _env_int("RELAY_DUPLICATE_TTL_DAYS", 1)
         ),
         "retry_attempts": setting_int(
             "retry_attempts",
-            3
+            _env_int("RELAY_RETRY_ATTEMPTS", 3)
         ),
         "retry_delay_seconds": setting_int(
             "retry_delay_seconds",
-            2
+            _env_int("RELAY_RETRY_DELAY_SECONDS", 2)
         ),
         "log_retention_days": setting_int(
             "log_retention_days",
-            1
+            _env_int("RELAY_LOG_RETENTION_DAYS", 1)
         ),
         "auto_resume": telegram_service.get_auto_resume()
     }
