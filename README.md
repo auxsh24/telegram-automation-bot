@@ -1,3 +1,4 @@
+https://telegramrelay.vercel.app/
 # Telegram Relay Dashboard
 
 A self-hosted, real-time Telegram message relay dashboard. Monitor source channels, forward messages to a converter bot, and manage everything through a clean web UI — all with zero monthly cost.
