@@ -121,38 +121,54 @@ class TelegramService:
             api_hash
         )
 
-    def create_client(self):
+    @staticmethod
+    def resolve_credentials():
+        """Return (api_id, api_hash), preferring the dashboard over env.
 
-        api_id = database.get_setting(
-            "telegram_api_id"
+        The dashboard stores credentials in the database so an operator can
+        change them from the UI. A cloud deployment has no UI on first boot,
+        so TELEGRAM_API_ID / TELEGRAM_API_HASH act as the fallback. Both are
+        documented in .env.example and passed through docker-compose, so they
+        have to actually be read here or they are silently ignored.
+        """
+        api_id = (
+            database.get_setting("telegram_api_id")
+            or os.getenv("TELEGRAM_API_ID", "").strip()
         )
 
-        api_hash = database.get_setting(
-            "telegram_api_hash"
+        api_hash = (
+            database.get_setting("telegram_api_hash")
+            or os.getenv("TELEGRAM_API_HASH", "").strip()
         )
 
         if not api_id or not api_hash:
+            return None, None
+
+        try:
+            api_id = int(api_id)
+        except (TypeError, ValueError):
+            return None, None
+
+        return api_id, api_hash
+
+    def create_client(self):
+
+        api_id, api_hash = self.resolve_credentials()
+
+        if not api_id or not api_hash:
             raise ValueError(
-                "Telegram API credentials are not configured."
+                "Telegram API credentials are not configured. Enter them "
+                "in the dashboard, or set TELEGRAM_API_ID and "
+                "TELEGRAM_API_HASH in the environment."
             )
 
-        # Cloud deployment: session string from env survives restarts.
-        # Local dev: session file in data/ directory.
-        session_string = os.getenv("TELEGRAM_SESSION_STRING", "").strip()
-
-        if session_string:
-            from telethon.sessions import StringSession
-            self.client = TelegramClient(
-                StringSession(session_string),
-                int(api_id),
-                api_hash
-            )
-        else:
-            self.client = TelegramClient(
-                str(SESSION_FILE),
-                int(api_id),
-                api_hash
-            )
+        # The login is stored as a file in data/, which is a mounted volume,
+        # so it survives restarts and rebuilds.
+        self.client = TelegramClient(
+            str(SESSION_FILE),
+            int(api_id),
+            api_hash
+        )
 
         return self.client
 
@@ -169,10 +185,9 @@ class TelegramService:
     async def is_authorized(self):
 
         if self.client is None:
-            if (
-                not database.get_setting("telegram_api_id")
-                or not database.get_setting("telegram_api_hash")
-            ):
+            api_id, api_hash = self.resolve_credentials()
+
+            if not api_id or not api_hash:
                 return False
 
             self.create_client()
@@ -328,34 +343,57 @@ class TelegramService:
 
     def get_converter_bot(self):
 
-        return database.get_setting(
-            "converter_bot",
-            "@ExtraPeBot"
+        # A stored blank is treated as unset: an empty row would otherwise
+        # shadow the environment default and every send would target "".
+        return (
+            database.get_setting("converter_bot", "").strip()
+            or os.getenv("RELAY_CONVERTER_BOT", "").strip()
+            or "@ExtraPeBot"
         )
 
     def get_source_channels(self):
+        """Saved channels, falling back to RELAY_SOURCE_CHANNELS.
 
+        The dashboard writes the saved list; the environment variable covers a
+        first boot with no UI. A stored blank counts as unset so a cleared
+        list cannot silently fall back to a value nobody expects.
+        """
         raw = database.get_setting(
             "source_channels",
-            "[]"
-        )
+            ""
+        ).strip()
 
-        try:
+        channels = []
 
-            channels = json.loads(raw)
+        if raw:
+            try:
+                parsed = json.loads(raw)
 
-            if not isinstance(channels, list):
-                return []
+                if isinstance(parsed, list):
+                    channels = parsed
+            except json.JSONDecodeError:
+                channels = []
 
-            return [
-                str(channel).strip()
-                for channel in channels
-                if str(channel).strip()
-            ]
+        if not channels:
+            raw = os.getenv(
+                "RELAY_SOURCE_CHANNELS",
+                ""
+            ).strip()
 
-        except json.JSONDecodeError:
+            if raw:
+                try:
+                    parsed = json.loads(raw)
 
-            return []
+                    if isinstance(parsed, list):
+                        channels = parsed
+                except json.JSONDecodeError:
+                    channels = []
+
+        return [
+            str(channel).strip()
+            for channel in channels
+            if str(channel).strip()
+        ]
 
     @staticmethod
     def _as_int(value, default):
@@ -523,6 +561,18 @@ class TelegramService:
                     self.monitor_entities = entities
 
                     if self.event_handler:
+                        # The old client object still holds the callback.
+                        # Re-adding without removing would process every
+                        # message twice (the claim check would swallow the
+                        # second copy, but it doubles the work and floods
+                        # the activity log with "skipped duplicate").
+                        try:
+                            self.client.remove_event_handler(
+                                self.event_handler
+                            )
+                        except Exception:
+                            pass
+
                         self.client.add_event_handler(
                             self.event_handler,
                             events.NewMessage(
@@ -583,7 +633,9 @@ class TelegramService:
         if not self.get_auto_resume():
             return False
 
-        if not database.get_setting("telegram_api_id"):
+        api_id, api_hash = self.resolve_credentials()
+
+        if not api_id or not api_hash:
             return False
 
         try:
@@ -638,18 +690,7 @@ class TelegramService:
             )
         )
 
-        db = database.get_connection()
-
-        db.execute(
-            """
-            DELETE FROM processed_messages
-            WHERE processed_at < ?
-            """,
-            (cutoff,)
-        )
-
-        db.commit()
-        db.close()
+        database.delete_old_processed(cutoff)
 
         # If the process died mid-send, that claim is stale and the message
         # should be retryable instead of looking like a duplicate forever.
@@ -1132,7 +1173,9 @@ class TelegramService:
                 "sent": sent,
                 "duplicate": duplicate,
                 "failed": failed,
-                "monitoring": True
+                # Report what actually happened rather than assuming the
+                # auto-start succeeded.
+                "monitoring": self.monitoring
             }
 
     # =========================================================

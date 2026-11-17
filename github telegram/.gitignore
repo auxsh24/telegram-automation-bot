@@ -1,0 +1,20 @@
+# Secrets and live Telegram login: never commit
+.env
+.env.*
+*.env
+data/
+*.session
+*.session-journal
+*.db
+*.db-wal
+*.db-shm
+backups/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

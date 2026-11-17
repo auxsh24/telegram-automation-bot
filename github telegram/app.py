@@ -1,11 +1,7 @@
 from pathlib import Path
-import base64
-import binascii
-import hmac
 import json
 import os
 import time
-from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -14,8 +10,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 import database
 from telegram_service import telegram_service
@@ -104,18 +98,6 @@ def setting_int(key, default):
         return default
 
 
-def env_flag(key, default=False):
-    raw = os.getenv(key)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on"
-    }
-
-
 app = FastAPI(
     title="Telegram Relay Dashboard",
     version="1.0.0",
@@ -123,156 +105,6 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None
 )
-
-
-class RelayAuthMiddleware(BaseHTTPMiddleware):
-    """Require operator credentials before exposing the dashboard or API.
-
-    Basic auth is a stop-gap, not a real identity system, so this middleware
-    also throttles repeated failures. Without that, an exposed instance is a
-    free brute-force target.
-    """
-
-    # In-memory, per-process. A single worker is the documented deployment, and
-    # it is enough to make online guessing impractical.
-    MAX_ATTEMPTS = 8
-    WINDOW_SECONDS = 300
-    LOCKOUT_SECONDS = 900
-
-    def __init__(self, app, max_attempts=None, window_seconds=None, lockout_seconds=None):
-        super().__init__(app)
-        self.max_attempts = int(max_attempts or os.getenv("RELAY_MAX_ATTEMPTS") or self.MAX_ATTEMPTS)
-        self.window_seconds = int(window_seconds or os.getenv("RELAY_RATE_WINDOW") or self.WINDOW_SECONDS)
-        self.lockout_seconds = int(lockout_seconds or os.getenv("RELAY_LOCKOUT_SECONDS") or self.LOCKOUT_SECONDS)
-        self._failures = defaultdict(list)
-        self._locked_until = {}
-
-    def _client_key(self, request):
-        """Identify the caller.
-
-        The proxy address is preferred so every request is counted separately
-        behind a tunnel, and only a direct connection falls back to a shared
-        bucket.
-        """
-        forwarded = request.headers.get("x-forwarded-for", "")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-        return request.client.host if request.client else "unknown"
-
-    def _retry_after(self, key):
-        locked_until = self._locked_until.get(key)
-        if not locked_until:
-            return 0
-        remaining = int(locked_until - time.time())
-        if remaining <= 0:
-            self._locked_until.pop(key, None)
-            self._failures.pop(key, None)
-            return 0
-        return remaining
-
-    def _register_failure(self, key):
-        now = time.time()
-        attempts = [
-            stamp
-            for stamp in self._failures.get(key, [])
-            if now - stamp < self.window_seconds
-        ]
-        attempts.append(now)
-        self._failures[key] = attempts
-
-        if len(attempts) >= self.max_attempts:
-            self._locked_until[key] = now + self.lockout_seconds
-            # Bound the map so a botnet cannot grow it without limit.
-            if len(self._failures) > 5000:
-                self._failures.clear()
-            return True
-        return False
-
-    def _clear_failures(self, key):
-        self._failures.pop(key, None)
-        self._locked_until.pop(key, None)
-
-    async def dispatch(self, request: Request, call_next):
-        path = request.url.path
-
-        # The health probe must answer before any auth decision, otherwise an
-        # orchestrator cannot tell a locked-out app from a dead one.
-        if path == "/api/health":
-            return await call_next(request)
-
-        configured_username = os.getenv("RELAY_USERNAME")
-        configured_password = os.getenv("RELAY_PASSWORD")
-        auth_disabled = env_flag("RELAY_AUTH_DISABLED") or not configured_username and not configured_password
-
-        if auth_disabled:
-            return await call_next(request)
-
-        if not configured_username or not configured_password:
-            return JSONResponse(
-                {
-                    "detail": (
-                        "Both RELAY_USERNAME and RELAY_PASSWORD must be "
-                        "configured together."
-                    )
-                },
-                status_code=503,
-            )
-
-        key = self._client_key(request)
-        retry_after = self._retry_after(key)
-
-        if retry_after > 0:
-            logger.warning(
-                "Auth locked out for %s, retry in %ss",
-                key,
-                retry_after
-            )
-            response = self._unauthorized(
-                "Too many failed attempts. Try again later."
-            )
-            response.headers["Retry-After"] = str(retry_after)
-            return response
-
-        authorization = request.headers.get("Authorization", "")
-        if not authorization.startswith("Basic "):
-            return self._unauthorized()
-
-        try:
-            encoded_credentials = authorization[6:].strip()
-            decoded_credentials = base64.b64decode(
-                encoded_credentials,
-                validate=True,
-            ).decode("utf-8")
-            username, password = decoded_credentials.split(":", 1)
-        except (ValueError, UnicodeDecodeError, binascii.Error):
-            return self._unauthorized()
-
-        valid_username = hmac.compare_digest(username, configured_username)
-        valid_password = hmac.compare_digest(password, configured_password)
-
-        if not (valid_username and valid_password):
-            locked = self._register_failure(key)
-            logger.warning(
-                "Failed auth attempt from %s (%s)",
-                key,
-                "locked out" if locked else "throttled"
-            )
-            return self._unauthorized()
-
-        self._clear_failures(key)
-
-        return await call_next(request)
-
-    @staticmethod
-    def _unauthorized(detail="Authentication required."):
-        response = JSONResponse(
-            {"detail": detail},
-            status_code=401,
-        )
-        response.headers["WWW-Authenticate"] = (
-            'Basic realm="Telegram Relay Dashboard", charset="UTF-8"'
-        )
-        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -311,24 +143,78 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Added last so it wraps the auth middleware: security headers are applied to
-# the 401 responses too.
+class SameOriginMiddleware(BaseHTTPMiddleware):
+    """Refuse cross-site writes.
+
+    This used to live inside the session middleware, where it was the second
+    half of CSRF protection next to SameSite=Strict. With the login gate gone
+    there is no session cookie to protect, but the check is still worth
+    keeping: without it, a page on any other site can POST to this dashboard
+    from the operator's browser and start, stop or reconfigure the relay.
+
+    The rule is deliberately narrow. A request with no Origin header is not a
+    browser form post - curl, a script, an uptime monitor - so there is nothing
+    to forge and it is allowed through.
+    """
+
+    SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+    @staticmethod
+    def _same_origin(request):
+        if request.method in SameOriginMiddleware.SAFE_METHODS:
+            return True
+
+        origin = request.headers.get("origin")
+
+        if not origin:
+            return True
+
+        host = request.headers.get("host", "")
+        expected = {host}
+
+        forwarded_host = request.headers.get("x-forwarded-host")
+        if forwarded_host:
+            expected.add(forwarded_host)
+
+        proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+        for candidate in list(expected):
+            if "://" not in candidate:
+                expected.add(f"{proto}://{candidate}")
+
+        return origin in expected
+
+    async def dispatch(self, request: Request, call_next):
+        if not self._same_origin(request):
+            logger.warning(
+                "Blocked cross-origin %s to %s from %s",
+                request.method,
+                request.url.path,
+                request.headers.get("origin", "unknown"),
+            )
+            return JSONResponse(
+                {"detail": "Cross-origin request blocked."},
+                status_code=403,
+            )
+
+        return await call_next(request)
+
+
+# Applied to every response, including error ones.
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RelayAuthMiddleware)
+app.add_middleware(SameOriginMiddleware)
 
 app.mount(
     "/static",
-    StaticFiles(directory=BASE_DIR / "static"),
+    StaticFiles(directory=BASE_DIR / "web" / "static"),
     name="static"
 )
-
 
 @app.get("/")
 async def root():
     # The shell must never be cached, otherwise a deploy keeps serving an old
     # bundle next to new assets.
     return FileResponse(
-        BASE_DIR / "templates" / "index.html",
+        BASE_DIR / "web" / "templates" / "index.html",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate"
         }
@@ -719,23 +605,40 @@ async def relay_stop():
 @app.get("/api/settings")
 async def get_settings():
 
-    source_channels_raw = database.get_setting(
+    # A saved list wins; RELAY_SOURCE_CHANNELS is the fallback so a fresh
+    # deploy can be configured from the environment alone. Without this the
+    # variable was documented and passed through compose but never read.
+    source_channels = [
+        str(channel).strip()
+        for channel in _env_list("RELAY_SOURCE_CHANNELS")
+        if str(channel).strip()
+    ]
+
+    saved_channels_raw = database.get_setting(
         "source_channels",
-        "[]"
-    )
+        ""
+    ).strip()
 
-    try:
-        source_channels = json.loads(source_channels_raw)
-    except json.JSONDecodeError:
-        source_channels = []
+    if saved_channels_raw:
+        try:
+            saved_channels = json.loads(saved_channels_raw)
 
-    if not isinstance(source_channels, list):
-        source_channels = []
+            if isinstance(saved_channels, list):
+                source_channels = [
+                    str(channel).strip()
+                    for channel in saved_channels
+                    if str(channel).strip()
+                ]
+        except json.JSONDecodeError:
+            pass
 
     return {
-        "converter_bot": database.get_setting(
-            "converter_bot",
-            os.getenv("RELAY_CONVERTER_BOT", "@ExtraPeBot")
+        # A stored blank is treated as unset so a cleared value cannot
+        # shadow the environment default.
+        "converter_bot": (
+            database.get_setting("converter_bot", "").strip()
+            or os.getenv("RELAY_CONVERTER_BOT", "@ExtraPeBot").strip()
+            or "@ExtraPeBot"
         ),
         "source_channels": source_channels,
         "duplicate_ttl_days": setting_int(

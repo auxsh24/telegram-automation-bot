@@ -1,0 +1,25 @@
+# .gitignore does not protect the image: the Dockerfile runs `COPY . .`.
+.env
+.env.*
+*.env
+*.session
+*.session-journal
+data/
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.git
+.gitignore
+.gitattributes
+*.md
+LICENSE
+*.log
+backups/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,35 +1,39 @@
-# Production compose for the Telegram Relay Dashboard.
+# Telegram Relay Dashboard — local setup.
 #
-# Usage:
-#   cp .env.example .env   # then fill in RELAY_USERNAME / RELAY_PASSWORD
 #   docker compose up -d --build
+#   open http://localhost:8000
 #
-# The app is meant to sit behind a TLS terminator (Cloudflare Tunnel or a
-# reverse proxy on the same host), which is why the port binds to loopback.
+# No .env file is needed. Telegram API credentials, login, channels and the
+# converter bot are all entered in the browser and saved in ./data.
+#
+# The port is bound to loopback on purpose: the dashboard has no password, so
+# only this machine can open it. Do not change 127.0.0.1 to 0.0.0.0.
+#
+# Keep --build in the command. The image tag is pinned, so without it Docker
+# can silently reuse an old image.
 
 services:
   telegram-relay:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     image: telegram-relay:latest
-    container_name: telegram-relay-dashboard
     restart: unless-stopped
-    # Loopback only: exposing 8000 on a public IP would serve the dashboard
-    # over plain HTTP, and the Basic auth credentials would cross the wire in
-    # clear text.
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
-      # Only the data directory is mounted. The previous per-file mounts meant
-      # any new source file was silently ignored by the running container.
       - ./data:/app/data
-    env_file:
-      - .env
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=UTC
-    # Bound the log driver so a chatty relay cannot fill the disk.
+      # Optional pre-configuration; every one of these can also be set in the UI.
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID:-}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH:-}
+      - RELAY_CONVERTER_BOT=${RELAY_CONVERTER_BOT:-@ExtraPeBot}
+      - RELAY_SOURCE_CHANNELS=${RELAY_SOURCE_CHANNELS:-[]}
+      - RELAY_DUPLICATE_TTL_DAYS=${RELAY_DUPLICATE_TTL_DAYS:-1}
+      - RELAY_RETRY_ATTEMPTS=${RELAY_RETRY_ATTEMPTS:-3}
+      - RELAY_RETRY_DELAY_SECONDS=${RELAY_RETRY_DELAY_SECONDS:-2}
+      - RELAY_LOG_RETENTION_DAYS=${RELAY_LOG_RETENTION_DAYS:-1}
+      - RELAY_TRUSTED_PROXIES=${RELAY_TRUSTED_PROXIES:-}
     logging:
       driver: json-file
       options:

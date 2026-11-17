@@ -1,24 +1,47 @@
-MIT License
+Telegram Relay Dashboard License (Use-Only)
 
-Copyright (c) 2026 Telegram Relay Dashboard contributors
+Copyright (c) 2026 [YOUR NAME]. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software and its source code (the "Software") are owned by the copyright
+holder named above (the "Owner"). The Owner keeps all rights in the Software
+except the limited permission below.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Permission
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+   You may download, install and run the Software, free of charge, for your
+   own personal or internal use. You may modify the Software for your own
+   private use.
+
+2. What you may not do
+
+   Without the Owner's prior written permission, you may not:
+
+   a. sell, resell, rent, lease, or license the Software or any copy of it;
+   b. charge money for the Software, for access to it, or for a service built
+      on it (including hosting it for others as a paid or free service);
+   c. publish, upload, share, or otherwise distribute the Software or any
+      modified version of it, in source or any other form;
+   d. sublicense the Software, or claim it as your own work;
+   e. remove or change this license or the copyright notice.
+
+3. Ownership
+
+   No ownership of the Software is transferred to you. Modifications you make
+   remain subject to this license.
+
+4. Termination
+
+   This license ends automatically if you break any of its terms. You must
+   then stop using the Software and delete all copies.
+
+5. No warranty
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   OWNER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+   ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 

@@ -1,0 +1,20 @@
+# Normalise line endings on commit, and check out LF everywhere.
+#
+# Without this, a Windows checkout leaves CRLF in the shell scripts,
+# and the Linux container build fails with
+# `/bin/sh^M: bad interpreter` — a break the author never sees
+# locally because it only happens on the Linux build.
+* text=auto eol=lf
+
+# Scripts the container executes. These must never carry CRLF.
+*.sh text eol=lf
+Dockerfile text eol=lf
+
+# Keep binary state files binary if they are ever force-added.
+*.session binary
+*.db binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
