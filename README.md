@@ -33,9 +33,10 @@ Open **http://localhost:8000**, then:
 3. Set the converter bot and source channels
 4. Click **Analyze Today** or **Start Monitor**
 
-## Security
+Note
 
-The dashboard has no password, so it is bound to `127.0.0.1`. Do not expose it publicly. The `data/` folder holds your Telegram session — never commit it.
+This project is built to run locally on your own machine. The data/ folder stores your Telegram session, so keep it private and never commit it to Git.
+
 
 ## License
 
