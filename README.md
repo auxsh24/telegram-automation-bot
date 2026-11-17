@@ -20,9 +20,10 @@ Python 3.12 · FastAPI · Telethon · SQLite · Docker
 You need Docker and Telegram API credentials (`api_id`, `api_hash`) from [my.telegram.org](https://my.telegram.org).
 
 ```bash
-git clone <your-repo-url>
-cd <repo-folder>
+git clone https://github.com/auxsh24/telegram-automation-bot.git
+cd .\telegram-automation-bot\mainfile\
 docker compose up -d --build
+
 ```
 
 Open **http://localhost:8000**, then:
