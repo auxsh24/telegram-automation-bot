@@ -10,6 +10,7 @@ A self-hosted dashboard that watches Telegram channels and automatically forward
 - "Analyze Today" to forward missed posts from today
 - Duplicate protection, retries and auto-reconnect
 - Live activity log and daily stats
+- **Built for [ExtraPe](https://www.extrape.com/)** — automates the affiliate workflow: deal posts are forwarded to the ExtraPe bot, which converts them into your affiliate links so you can earn commission
 
 ## Tech Stack
 
@@ -21,23 +22,21 @@ You need Docker and Telegram API credentials (`api_id`, `api_hash`) from [my.tel
 
 ```bash
 git clone https://github.com/auxsh24/telegram-automation-bot.git
-cd .\telegram-automation-bot\mainfile\
+cd telegram-automation-bot/mainfile
 docker compose up -d --build
-
 ```
 
 Open **http://localhost:8000**, then:
 
 1. Enter your API ID and hash
 2. Log in with your phone number and code
-3. Set the converter bot and source channels
+3. Set the converter bot (default: `@ExtraPeBot`) and source channels
 4. Click **Analyze Today** or **Start Monitor**
 
 ## Note
 
-This project is built to run locally on your own machine. The data/ folder stores your Telegram session, so keep it private and never commit it to Git.
-
+This project is built to run **locally on your own machine**. The `data/` folder stores your Telegram session, so keep it private and never commit it to Git.
 
 ## License
 
-Use-only license — see [LICENSE](LICENSE). Not affiliated with Telegram.
+Use-only license — see [LICENSE](https://github.com/auxsh24/telegram-automation-bot/blob/main/LICENSE). Not affiliated with Telegram or ExtraPe.
