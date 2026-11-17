@@ -33,7 +33,7 @@ Open **http://localhost:8000**, then:
 3. Set the converter bot and source channels
 4. Click **Analyze Today** or **Start Monitor**
 
-Note
+## Note
 
 This project is built to run locally on your own machine. The data/ folder stores your Telegram session, so keep it private and never commit it to Git.
 
