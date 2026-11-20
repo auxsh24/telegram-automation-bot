@@ -1,5 +1,9 @@
 https://telegramrelay.vercel.app/
 
+
+https://github.com/user-attachments/assets/07fdd1df-145a-454f-b8c4-74f27f2ece13
+
+
 # Telegram Relay Dashboard
 
 A self-hosted dashboard that watches Telegram channels and automatically forwards new posts to a converter bot. Everything is set up from the browser — no `.env` needed.
