@@ -1,4 +1,4 @@
-https://telegramrelay.vercel.app/
+https://telegramrelayweb.vercel.app/
 
 
 https://github.com/user-attachments/assets/07fdd1df-145a-454f-b8c4-74f27f2ece13
